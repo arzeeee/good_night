@@ -10,7 +10,17 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_08_05_180415) do
+ActiveRecord::Schema[8.0].define(version: 2025_08_06_095015) do
+  create_table "clock_ins", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.datetime "clock_in_time", null: false
+    t.datetime "clock_out_time"
+    t.decimal "duration_seconds", precision: 10, scale: 3
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_clock_ins_on_user_id"
+  end
+
   create_table "followings", id: false, force: :cascade do |t|
     t.integer "follower_id", null: false
     t.integer "following_id", null: false
@@ -22,6 +32,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_08_05_180415) do
     t.string "name", null: false
   end
 
+  add_foreign_key "clock_ins", "users"
   add_foreign_key "followings", "users", column: "follower_id"
   add_foreign_key "followings", "users", column: "following_id"
 end

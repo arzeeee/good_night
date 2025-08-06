@@ -13,6 +13,8 @@ class User < ApplicationRecord
   has_many :following, through: :active_followings, source: :following
   has_many :followers, through: :passive_followings, source: :follower
 
+  has_many :clock_ins, dependent: :destroy
+
   def assign_user(name)
     return User.find_or_create_by(name: name)
   end

@@ -10,8 +10,18 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_08_05_165053) do
+ActiveRecord::Schema[8.0].define(version: 2025_08_05_180415) do
+  create_table "followings", id: false, force: :cascade do |t|
+    t.integer "follower_id", null: false
+    t.integer "following_id", null: false
+    t.index ["follower_id", "following_id"], name: "index_followings_on_follower_id_and_following_id", unique: true
+    t.index ["following_id", "follower_id"], name: "index_followings_on_following_id_and_follower_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "name", null: false
   end
+
+  add_foreign_key "followings", "users", column: "follower_id"
+  add_foreign_key "followings", "users", column: "following_id"
 end

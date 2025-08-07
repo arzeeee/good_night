@@ -9,6 +9,16 @@ Rails.application.routes.draw do
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
+  # API routes
+  namespace :api do
+    post "clock_in", to: "clock_ins#clock_in"
+    post "clock_out", to: "clock_ins#clock_out"
+    get "user_clock_ins", to: "clock_ins#user_clock_ins"
+    post "follow_user", to: "clock_ins#follow_user"
+    post "unfollow_user", to: "clock_ins#unfollow_user"
+    get "followings_clock_ins", to: "clock_ins#followings_clock_ins"
+  end
+
   # Defines the root path route ("/")
   # root "posts#index"
 end

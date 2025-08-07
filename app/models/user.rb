@@ -20,17 +20,25 @@ class User < ApplicationRecord
   end
 
   def follow(other_user)
-    other_user = assign_user(other_user)
+    if other_user.is_a?(String)
+      other_user = User.find_or_create_by(name: other_user)
+    end
     following << other_user unless self == other_user
   end
 
   def unfollow(other_user)
-    other_user = assign_user(other_user)
+    if other_user.is_a?(String)
+      other_user = User.find_by(name: other_user)
+      return unless other_user
+    end
     following.delete(other_user)
   end
 
   def following?(other_user)
-    other_user = assign_user(other_user)
+    if other_user.is_a?(String)
+      other_user = User.find_by(name: other_user)
+      return false unless other_user
+    end
     following.include?(other_user)
   end
 end

@@ -4,6 +4,10 @@ RSpec.describe "Api::ClockIns", type: :request do
   let!(:user1) { create(:user, name: "alice123") }
   let!(:user2) { create(:user, name: "bob456") }
 
+  before do
+    Rack::Attack.cache.store.clear
+  end
+
   describe "POST /api/clock_in" do
     context "with valid user" do
       it "returns job_id and accepted status" do

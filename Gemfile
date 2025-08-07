@@ -35,6 +35,9 @@ gem "bootsnap", require: false
 gem "sidekiq"
 gem "redis"
 
+# Rate limiting
+gem "rack-attack"
+
 # Deploy this application anywhere as a Docker container [https://kamal-deploy.org]
 gem "kamal", require: false
 

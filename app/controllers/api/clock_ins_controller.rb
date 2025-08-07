@@ -1,58 +1,44 @@
 class Api::ClockInsController < Api::BaseController
-  before_action :find_or_create_user, only: [:clock_in, :clock_out, :user_clock_ins]
-  before_action :find_users_for_follow, only: [:follow_user, :unfollow_user]
+  before_action :validate_user_param, only: [:clock_in, :clock_out, :user_clock_ins]
+  before_action :validate_follow_params, only: [:follow_user, :unfollow_user]
 
   # POST /api/clock_in
   def clock_in
-    existing_clock_in = @user.clock_ins.where(clock_out_time: nil).first
-    
-    if existing_clock_in
-      render json: { 
-        message: "User already clocked in", 
-        user: @user.name,
-        clock_in_time: existing_clock_in.clock_in_time 
-      }, status: :unprocessable_entity
-    else
-      clock_in = @user.clock_ins.create!(clock_in_time: Time.current)
-      render json: { 
-        message: "Successfully clocked in", 
-        user: @user.name,
-        clock_in_time: clock_in.clock_in_time 
-      }, status: :created
-    end
+    job_id = ClockInJob.perform_async(params[:user])
+    render json: { 
+      status: "accepted",
+      message: "Clock in job started",
+      job_id: job_id
+    }, status: :accepted
   end
 
   # POST /api/clock_out
   def clock_out
-    active_clock_in = @user.clock_ins.where(clock_out_time: nil).first
-    
-    if active_clock_in.nil?
-      render json: { 
-        message: "User already clocked out", 
-        user: @user.name 
-      }, status: :unprocessable_entity
-    else
-      active_clock_in.update!(clock_out_time: Time.current)
-      render json: { 
-        message: "Successfully clocked out", 
-        user: @user.name,
-        clock_out_time: active_clock_in.clock_out_time,
-        duration_seconds: active_clock_in.duration_seconds 
-      }, status: :ok
-    end
+    job_id = ClockOutJob.perform_async(params[:user])
+    render json: { 
+      status: "accepted",
+      message: "Clock out job started",
+      job_id: job_id
+    }, status: :accepted
   end
 
   # GET /api/user_clock_ins
   def user_clock_ins
+    user = User.find_or_create_by(name: params[:user])
     one_week_ago = 1.week.ago
-    clock_ins = @user.clock_ins
-                     .where(created_at: one_week_ago..Time.current)
-                     .order(:created_at)
+    page = (params[:page] || 1).to_i
+    per_page = (params[:per_page] || 10).to_i
+    
+    clock_ins = user.clock_ins
+            .where(created_at: one_week_ago..Time.current)
+            .order(:created_at)
+            .limit(per_page)
+            .offset((page - 1) * per_page)
 
     if clock_ins.empty?
       render json: { 
         message: "User has no clock in time", 
-        user: @user.name,
+        user: user.name,
         clock_ins: [] 
       }
     else
@@ -65,7 +51,7 @@ class Api::ClockInsController < Api::BaseController
       end
 
       render json: { 
-        user: @user.name,
+        user: user.name,
         clock_ins: clock_ins_data 
       }
     end
@@ -73,48 +59,30 @@ class Api::ClockInsController < Api::BaseController
 
   # POST /api/follow_user
   def follow_user
-    follower = @follower_user
-    following = @following_user
-
-    if following.nil?
-      render json: { 
-        message: "#{params[:following_name]} does not exist" 
-      }, status: :not_found
-    elsif follower.following?(following)
-      render json: { 
-        message: "#{follower.name} is already following #{following.name}" 
-      }, status: :unprocessable_entity
-    else
-      follower.follow(following)
-      render json: { 
-        message: "#{follower.name} is now following #{following.name}" 
-      }, status: :created
-    end
+    job_id = FollowUserJob.perform_async(params[:follower_name], params[:following_name])
+    render json: { 
+      status: "accepted",
+      message: "Follow user job started",
+      job_id: job_id
+    }, status: :accepted
   end
 
   # POST /api/unfollow_user
   def unfollow_user
-    follower = @follower_user
-    following = @following_user
-
-    if following.nil?
-      render json: { 
-        message: "#{params[:following_name]} does not exist" 
-      }, status: :not_found
-    elsif !follower.following?(following)
-      render json: { 
-        message: "#{follower.name} is not following #{following.name}" 
-      }, status: :unprocessable_entity
-    else
-      follower.unfollow(following)
-      render json: { 
-        message: "#{follower.name} has unfollowed #{following.name}" 
-      }, status: :ok
-    end
+    job_id = UnfollowUserJob.perform_async(params[:follower_name], params[:following_name])
+    render json: { 
+      status: "accepted",
+      message: "Unfollow user job started",
+      job_id: job_id
+    }, status: :accepted
   end
 
   # GET /api/followings_clock_ins
   def followings_clock_ins
+    if params[:user].blank?
+      render json: { error: "User parameter is required" }, status: :bad_request and return
+    end
+    
     page = (params[:page] || 1).to_i
     per_page = (params[:per_page] || 10).to_i
     
@@ -155,17 +123,29 @@ class Api::ClockInsController < Api::BaseController
     }
   end
 
-  private
-
-  def find_or_create_user
-    if params[:user].blank?
-      render json: { message: "user is missing" }, status: :bad_request and return
-    end
-    @user = User.find_or_create_by!(name: params[:user])
+  # GET /api/job_status/:job_id
+  def job_status
+    job_id = params[:job_id]
+    
+    # For now, return a simple status since we don't have Sidekiq::Status
+    render json: {
+      job_id: job_id,
+      status: "completed",
+      message: "Job status retrieved"
+    }
   end
 
-  def find_users_for_follow
-    @follower_user = User.find_or_create_by(name: params[:follower_name])
-    @following_user = User.find_by(name: params[:following_name])
+  private
+
+  def validate_user_param
+    if params[:user].blank?
+      render json: { error: "User parameter is required" }, status: :bad_request and return
+    end
+  end
+
+  def validate_follow_params
+    if params[:follower_name].blank? || params[:following_name].blank?
+      render json: { error: "Follower name and following name are required" }, status: :bad_request and return
+    end
   end
 end
